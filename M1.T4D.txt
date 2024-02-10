@@ -1,0 +1,83 @@
+const int pirSensorPin = 2;       
+const int buzzerPin = 7;          
+const int tiltSensorPin = 3;      
+const int pirSensor2Pin = 4;      
+int redLedPin = 13;                
+int blueLedPin = 11;               
+const int greenLedPin = 12;        
+
+// Variables for sensor states
+uint8_t motionState1, tiltState, motionState2 = 0;
+
+// Variables to store previous sensor states
+uint8_t prevMotionState1, prevMotionState2, prevTiltState = 0;
+
+const uint16_t timerCounter = 0;       // Timer counter
+const uint16_t compareThreshold = 31250;    
+
+void setup() {
+  Serial.begin(9600);    
+
+  // Set pin modes
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(redLedPin, OUTPUT);
+  pinMode(blueLedPin, OUTPUT);
+  pinMode(tiltSensorPin, INPUT_PULLUP);
+  pinMode(pirSensorPin, INPUT);
+  pinMode(pirSensor2Pin, INPUT);
+  pinMode(greenLedPin, OUTPUT);
+
+  // Enable Pin Change Interrupts for pins 2, 3, 4
+  PCICR |= 0b00000111;
+  PCMSK2 |= 0b00011100;
+
+  // Set up Timer1
+  TCCR1A = 0;
+  TCCR1B |= (1 << CS12);    // Sets prescaler to 256
+  TCCR1B &= ~(1 << CS11);
+  TCCR1B &= ~(1 << CS10);
+  TCNT1 = timerCounter;     // To initialize timer
+  OCR1A = compareThreshold; // Sets compare threshold
+  TIMSK1 = (1 << OCIE1A);   // Enables Timer1 Compare A interrupt
+
+  // Enabling interrupts
+  sei();
+}
+
+void loop() {
+  // To check for sensor states changes and to update LED/buzzer accordingly
+  if (prevMotionState1 != motionState1) {
+    digitalWrite(redLedPin, motionState1);
+    Serial.println("Motion Detected: From (1),LED Status: Red ON");
+    prevMotionState1 = motionState1;
+  }
+
+  if (prevMotionState2 != motionState2) {
+    digitalWrite(blueLedPin, motionState2);
+    Serial.println("Motion Detected: From (2),LED Status: Blue ON");
+    prevMotionState2 = motionState2;
+  }
+
+  if (prevTiltState != tiltState) {
+    digitalWrite(buzzerPin, tiltState);
+    Serial.println("Activity detected by Tilt Sensor: Beep OFF");
+    prevTiltState = tiltState;
+  }
+
+  delay(200); 
+}
+
+// Pin change interrupt
+ISR(PCINT2_vect) {
+  // Reads sensor states when interrupt occurs
+  motionState1 = PIND & (1 << pirSensorPin);
+  motionState2 = PIND & (1 << pirSensor2Pin);
+  tiltState = PIND & (1 << tiltSensorPin);
+}
+
+// Timer1 Compare A interrupt service routine
+ISR(TIMER1_COMPA_vect) {
+  // Reset timer and toggle green LED pin state
+  TCNT1 = timerCounter;
+  digitalWrite(greenLedPin, !digitalRead(greenLedPin));
+}
